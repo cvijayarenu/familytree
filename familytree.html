@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph with Family Relationships and Marriages</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+        }
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f4f4f9;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="myChart"></canvas>
+    <script>
+        // Helper function to calculate age from date of birth
+        function calculateAge(dob) {
+            const birthDate = new Date(dob);
+            const today = new Date();
+            let age = today.getFullYear() - birthDate.getFullYear();
+            const monthDiff = today.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            return age;
+        }
+
+        // Helper to calculate age at a specific date
+        function calculateAgeAtDate(dob, date) {
+            const birthDate = new Date(dob);
+            let age = date.getFullYear() - birthDate.getFullYear();
+            const monthDiff = date.getMonth() - birthDate.getMonth();
+            if (monthDiff < 0 || (monthDiff === 0 && date.getDate() < birthDate.getDate())) {
+                age--;
+            }
+            return age;
+        }
+
+        // Data with attributes, including gender, siblings, and spouses
+        const dataPoints = [
+            { 
+                x: 1870, dob: "1870-05-15", name: "John Doe", gender: "Male", place: "New York", 
+                key: "John Doe-1870-05-15", siblings: ["Jane Smith-1900-09-23"], spouse: "Jane Smith-1900-09-23"
+            },
+            { 
+                x: 1900, dob: "1900-09-23", name: "Jane Smith", gender: "Female", place: "London", 
+                key: "Jane Smith-1900-09-23", siblings: ["John Doe-1870-05-15", "Alice Johnson-1950-03-02"], spouse: "John Doe-1870-05-15"
+            },
+            { 
+                x: 1950, dob: "1950-03-02", name: "Alice Johnson", gender: "Female", place: "Sydney", 
+                key: "Alice Johnson-1950-03-02", siblings: ["Jane Smith-1900-09-23"], spouse: null
+            },
+            { 
+                x: 2000, dob: "2000-11-12", name: "Bob Brown", gender: "Male", place: "Tokyo", 
+                key: "Bob Brown-2000-11-12", siblings: [], spouse: null
+            }
+        ];
+
+        // Add calculated age as the Y-axis value
+        const updatedDataPoints = dataPoints.map(point => ({
+            ...point,
+            y: calculateAge(point.dob),
+            color: point.gender === "Male" ? "rgba(255, 0, 0, 0.8)" : "rgba(0, 0, 255, 0.8)" // Red for Male, Blue for Female
+        }));
+
+        // Additional Marriage data
+        const marriages = [
+            {
+                date: "1920-05-15",
+                people: ["John Doe-1870-05-15", "Jane Smith-1900-09-23"]
+            },
+            {
+                date: "1975-06-10",
+                people: ["Alice Johnson-1950-03-02"]
+            }
+        ];
+
+        // Process marriage data into chart points
+        const marriageNodes = marriages.map(marriage => {
+            const marriageDate = new Date(marriage.date);
+            const xYear = marriageDate.getFullYear();
+            return {
+                x: xYear,
+                y: marriage.people.map(personKey => {
+                    const person = updatedDataPoints.find(point => point.key === personKey);
+                    return person ? calculateAgeAtDate(person.dob, marriageDate) : null;
+                }),
+                date: marriage.date,
+                people: marriage.people,
+                color: "rgba(0, 255, 0, 0.8)" // Green for marriage nodes
+            };
+        }).filter(node => node.y.every(age => age !== null)); // Remove nodes with invalid ages
+
+        // Helper function to find the coordinates of a node by its key
+        function findNodeCoordinates(key, chart) {
+            const dataset = chart.data.datasets[0].data;
+            const index = updatedDataPoints.findIndex(point => point.key === key);
+            if (index !== -1) {
+                const meta = chart.getDatasetMeta(0);
+                const data = meta.data[index];
+                return data ? data.getCenterPoint() : null;
+            }
+            return null;
+        }
+
+        const connectRelationshipsPlugin = {
+            id: 'connectRelationships',
+            afterDraw: (chart) => {
+                const ctx = chart.ctx;
+
+                // Draw sibling connections
+                updatedDataPoints.forEach(point => {
+                    const startCoordinates = findNodeCoordinates(point.key, chart);
+                    if (!startCoordinates) return;
+
+                    point.siblings.forEach(siblingKey => {
+                        const endCoordinates = findNodeCoordinates(siblingKey, chart);
+                        if (endCoordinates) {
+                            ctx.beginPath();
+                            ctx.moveTo(startCoordinates.x, startCoordinates.y);
+                            ctx.lineTo(endCoordinates.x, endCoordinates.y);
+                            ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'; // Blue for siblings
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        }
+                    });
+                });
+
+                // Draw marriage connections
+                marriageNodes.forEach(marriage => {
+                    // Find the coordinates of the marriage node
+                    const marriageIndex = marriageNodes.findIndex(node => node.date === marriage.date);
+                    const marriageCoordinates = chart.getDatasetMeta(1).data[marriageIndex]?.getCenterPoint();
+
+                    if (!marriageCoordinates) return;
+
+                    // Draw lines to each participant in the marriage
+                    marriage.people.forEach(personKey => {
+                        const personIndex = updatedDataPoints.findIndex(point => point.key === personKey);
+                        const personCoordinates = chart.getDatasetMeta(0).data[personIndex]?.getCenterPoint();
+
+                        if (personCoordinates) {
+                            ctx.beginPath();
+                            ctx.moveTo(marriageCoordinates.x, marriageCoordinates.y);
+                            ctx.lineTo(personCoordinates.x, personCoordinates.y);
+                            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for marriage connections
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        }
+                    });
+                });
+            }
+        };
+
+
+        // Register the plugins
+        Chart.register(connectRelationshipsPlugin, ChartDataLabels);
+
+        const ctx = document.getElementById('myChart').getContext('2d');
+
+        const myChart = new Chart(ctx, {
+            type: 'scatter',
+            data: {
+                datasets: [
+                    {
+                        label: 'Individuals',
+                        data: updatedDataPoints.map(point => ({ x: point.x, y: point.y })), // Use x, y for plotting
+                        backgroundColor: updatedDataPoints.map(point => point.color), // Set color based on gender
+                        borderColor: 'rgba(0, 0, 0, 0.1)',
+                        borderWidth: 1,
+                        pointRadius: 6
+                    },
+                    {
+                        label: 'Marriages',
+                        data: marriageNodes.map(node => ({
+                            x: node.x,
+                            y: Math.min(...node.y), // Take the youngest participant's age for plotting
+                            date: node.date,
+                            people: node.people
+                        })),
+                        backgroundColor: marriageNodes.map(node => node.color),
+                        borderColor: 'rgba(0, 0, 0, 0.1)',
+                        borderWidth: 1,
+                        pointRadius: 8
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    datalabels: {
+                        align: 'top',
+                        anchor: 'end',
+                        formatter: (value, context) => {
+                            const dataset = context.datasetIndex === 0 ? updatedDataPoints : marriageNodes;
+                            const point = dataset[context.dataIndex];
+                            return context.datasetIndex === 0
+                                ? point.name
+                                : `Marriage (${point.date})`;
+                        },
+                        color: 'black',
+                        font: {
+                            size: 12
+                        }
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function (context) {
+                                const dataset = context.datasetIndex === 0 ? updatedDataPoints : marriageNodes;
+                                const point = dataset[context.dataIndex];
+                                return context.datasetIndex === 0
+                                    ? [
+                                        `Name: ${point.name}`,
+                                        `Gender: ${point.gender}`,
+                                        `Age: ${point.y}`,
+                                        `Date of Birth: ${point.dob}`,
+                                        `Place of Birth: ${point.place}`,
+                                        `Key: ${point.key}`,
+                                        `Siblings: ${point.siblings.length > 0 ? point.siblings.join(", ") : "None"}`,
+                                        `Spouse: ${point.spouse ? point.spouse : "None"}`
+                                    ]
+                                    : [
+                                        `Marriage Date: ${point.date}`,
+                                        `Participants: ${point.people.join(", ")}`
+                                    ];
+                            }
+                        }
+                    },
+                    legend: {
+                        display: true,
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Year'
+                        },
+                        min: 1850,
+                        max: 2050
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Age'
+                        },
+                        min: 0
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
