@@ -52,24 +52,36 @@
             return age;
         }
 
-        // Data with attributes, including gender, siblings, and spouses
+        // Data for individuals
         const dataPoints = [
             { 
-                x: 1870, dob: "1870-05-15", name: "John Doe", gender: "Male", place: "New York", 
-                key: "John Doe-1870-05-15", siblings: ["Jane Smith-1900-09-23"], spouse: "Jane Smith-1900-09-23"
+                x: 2020, dob: "2020-01-01", name: "Anagha Aradhya", gender: "Female", place: "San-Francisco", 
+                key: "ANA1"
             },
             { 
-                x: 1900, dob: "1900-09-23", name: "Jane Smith", gender: "Female", place: "London", 
-                key: "Jane Smith-1900-09-23", siblings: ["John Doe-1870-05-15", "Alice Johnson-1950-03-02"], spouse: "John Doe-1870-05-15"
+                x: 1982, dob: "1982-07-13", name: "Chandrashekar Vijayarenu", gender: "Male", place: "Bangalore", 
+                key: "CHA1"
             },
             { 
-                x: 1950, dob: "1950-03-02", name: "Alice Johnson", gender: "Female", place: "Sydney", 
-                key: "Alice Johnson-1950-03-02", siblings: ["Jane Smith-1900-09-23"], spouse: null
+                x: 1987, dob: "1987-03-31", name: "Nandini Margada", gender: "Female", place: "Danvanagere", 
+                key: "NAN1"
             },
             { 
-                x: 2000, dob: "2000-11-12", name: "Bob Brown", gender: "Male", place: "Tokyo", 
-                key: "Bob Brown-2000-11-12", siblings: [], spouse: null
-            }
+                x: 1980, dob: "1980-08-30", name: "Lohit Vijayarenu", gender: "Male", place: "Bangalore", 
+                key: "LOH1"
+            },
+            { 
+                x: 1984, dob: "1984-09-17", name: "Ashwini Thonteshwaramurthy", gender: "FeMale", place: "Bangalore", 
+                key: "ASH1"
+            },
+            { 
+                x: 2014, dob: "2014-06-13", name: "Atharva Aradhya", gender: "Male", place: "San-Francisco", 
+                key: "ATH1"
+            },
+            { 
+                x: 2020, dob: "2020-03-23", name: "Agastya Aradhya", gender: "Male", place: "Bangalore", 
+                key: "AGA1"
+            },
         ];
 
         // Add calculated age as the Y-axis value
@@ -82,12 +94,14 @@
         // Additional Marriage data
         const marriages = [
             {
-                date: "1920-05-15",
-                people: ["John Doe-1870-05-15", "Jane Smith-1900-09-23"]
+                date: "2012-02-09",
+                people: ["CHA1", "NAN1"],
+                children: ["ANA1"]
             },
             {
-                date: "1975-06-10",
-                people: ["Alice Johnson-1950-03-02"]
+                date: "2009-11-12",
+                people: ["LOH1", "ASH1"],
+                children: ["ATH1","AGA1"]
             }
         ];
 
@@ -95,6 +109,10 @@
         const marriageNodes = marriages.map(marriage => {
             const marriageDate = new Date(marriage.date);
             const xYear = marriageDate.getFullYear();
+            const childrenDetails = marriage.children.map(childKey => 
+                updatedDataPoints.find(point => point.key === childKey)
+            ).filter(child => child); // Filter out invalid children
+
             return {
                 x: xYear,
                 y: marriage.people.map(personKey => {
@@ -103,54 +121,22 @@
                 }),
                 date: marriage.date,
                 people: marriage.people,
+                key: marriage.people.join("-"),
+                children: childrenDetails,
                 color: "rgba(0, 255, 0, 0.8)" // Green for marriage nodes
             };
         }).filter(node => node.y.every(age => age !== null)); // Remove nodes with invalid ages
-
-        // Helper function to find the coordinates of a node by its key
-        function findNodeCoordinates(key, chart) {
-            const dataset = chart.data.datasets[0].data;
-            const index = updatedDataPoints.findIndex(point => point.key === key);
-            if (index !== -1) {
-                const meta = chart.getDatasetMeta(0);
-                const data = meta.data[index];
-                return data ? data.getCenterPoint() : null;
-            }
-            return null;
-        }
 
         const connectRelationshipsPlugin = {
             id: 'connectRelationships',
             afterDraw: (chart) => {
                 const ctx = chart.ctx;
 
-                // Draw sibling connections
-                updatedDataPoints.forEach(point => {
-                    const startCoordinates = findNodeCoordinates(point.key, chart);
-                    if (!startCoordinates) return;
-
-                    point.siblings.forEach(siblingKey => {
-                        const endCoordinates = findNodeCoordinates(siblingKey, chart);
-                        if (endCoordinates) {
-                            ctx.beginPath();
-                            ctx.moveTo(startCoordinates.x, startCoordinates.y);
-                            ctx.lineTo(endCoordinates.x, endCoordinates.y);
-                            ctx.strokeStyle = 'rgba(0, 0, 255, 0.5)'; // Blue for siblings
-                            ctx.lineWidth = 2;
-                            ctx.stroke();
-                        }
-                    });
-                });
-
-                // Draw marriage connections
-                marriageNodes.forEach(marriage => {
-                    // Find the coordinates of the marriage node
-                    const marriageIndex = marriageNodes.findIndex(node => node.date === marriage.date);
+                // Draw green lines for marriage participants
+                marriageNodes.forEach((marriage, marriageIndex) => {
                     const marriageCoordinates = chart.getDatasetMeta(1).data[marriageIndex]?.getCenterPoint();
-
                     if (!marriageCoordinates) return;
 
-                    // Draw lines to each participant in the marriage
                     marriage.people.forEach(personKey => {
                         const personIndex = updatedDataPoints.findIndex(point => point.key === personKey);
                         const personCoordinates = chart.getDatasetMeta(0).data[personIndex]?.getCenterPoint();
@@ -159,7 +145,30 @@
                             ctx.beginPath();
                             ctx.moveTo(marriageCoordinates.x, marriageCoordinates.y);
                             ctx.lineTo(personCoordinates.x, personCoordinates.y);
-                            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for marriage connections
+                            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for marriage participant lines
+                            ctx.lineWidth = 2;
+                            ctx.stroke();
+                        }
+                    });
+                });
+
+                // Draw blue lines for children
+                marriageNodes.forEach((marriage, marriageIndex) => {
+                    const marriageCoordinates = chart.getDatasetMeta(1).data[marriageIndex]?.getCenterPoint();
+                    if (!marriageCoordinates) return;
+
+                    // Sort children by year of birth (eldest to youngest)
+                    const sortedChildren = marriage.children.sort((a, b) => new Date(a.dob) - new Date(b.dob));
+
+                    sortedChildren.forEach(child => {
+                        const childIndex = updatedDataPoints.findIndex(point => point.key === child.key);
+                        const childCoordinates = chart.getDatasetMeta(0).data[childIndex]?.getCenterPoint();
+
+                        if (childCoordinates) {
+                            ctx.beginPath();
+                            ctx.moveTo(marriageCoordinates.x, marriageCoordinates.y);
+                            ctx.lineTo(childCoordinates.x, childCoordinates.y);
+                            ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // Blue for lines to children
                             ctx.lineWidth = 2;
                             ctx.stroke();
                         }
@@ -167,7 +176,6 @@
                 });
             }
         };
-
 
         // Register the plugins
         Chart.register(connectRelationshipsPlugin, ChartDataLabels);
@@ -192,7 +200,9 @@
                             x: node.x,
                             y: Math.min(...node.y), // Take the youngest participant's age for plotting
                             date: node.date,
-                            people: node.people
+                            people: node.people,
+                            key: node.key,
+                            children: node.children
                         })),
                         backgroundColor: marriageNodes.map(node => node.color),
                         borderColor: 'rgba(0, 0, 0, 0.1)',
@@ -232,13 +242,12 @@
                                         `Age: ${point.y}`,
                                         `Date of Birth: ${point.dob}`,
                                         `Place of Birth: ${point.place}`,
-                                        `Key: ${point.key}`,
-                                        `Siblings: ${point.siblings.length > 0 ? point.siblings.join(", ") : "None"}`,
-                                        `Spouse: ${point.spouse ? point.spouse : "None"}`
+                                        `Key: ${point.key}`
                                     ]
                                     : [
                                         `Marriage Date: ${point.date}`,
-                                        `Participants: ${point.people.join(", ")}`
+                                        `Participants: ${point.people.join(", ")}`,
+                                        `Children: ${point.children.length > 0 ? point.children.map(c => c.name).join(", ") : "None"}`
                                     ];
                             }
                         }
