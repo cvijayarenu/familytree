@@ -132,11 +132,12 @@
             afterDraw: (chart) => {
                 const ctx = chart.ctx;
 
-                // Draw green lines for marriage participants
+                // Draw marriage connections (Green line)
                 marriageNodes.forEach((marriage, marriageIndex) => {
                     const marriageCoordinates = chart.getDatasetMeta(1).data[marriageIndex]?.getCenterPoint();
                     if (!marriageCoordinates) return;
 
+                    // Draw green lines to the participants of the marriage
                     marriage.people.forEach(personKey => {
                         const personIndex = updatedDataPoints.findIndex(point => point.key === personKey);
                         const personCoordinates = chart.getDatasetMeta(0).data[personIndex]?.getCenterPoint();
@@ -145,29 +146,35 @@
                             ctx.beginPath();
                             ctx.moveTo(marriageCoordinates.x, marriageCoordinates.y);
                             ctx.lineTo(personCoordinates.x, personCoordinates.y);
-                            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for marriage participant lines
+                            ctx.strokeStyle = 'rgba(0, 255, 0, 0.8)'; // Green for marriage connections
                             ctx.lineWidth = 2;
                             ctx.stroke();
                         }
                     });
-                });
 
-                // Draw blue lines for children
-                marriageNodes.forEach((marriage, marriageIndex) => {
-                    const marriageCoordinates = chart.getDatasetMeta(1).data[marriageIndex]?.getCenterPoint();
-                    if (!marriageCoordinates) return;
-
-                    // Sort children by year of birth (eldest to youngest)
+                    // Draw connections from marriage nodes to children (Blue line)
                     const sortedChildren = marriage.children.sort((a, b) => new Date(a.dob) - new Date(b.dob));
-
-                    sortedChildren.forEach(child => {
+                    sortedChildren.forEach((child, index) => {
                         const childIndex = updatedDataPoints.findIndex(point => point.key === child.key);
                         const childCoordinates = chart.getDatasetMeta(0).data[childIndex]?.getCenterPoint();
 
                         if (childCoordinates) {
-                            ctx.beginPath();
-                            ctx.moveTo(marriageCoordinates.x, marriageCoordinates.y);
-                            ctx.lineTo(childCoordinates.x, childCoordinates.y);
+                            if (index === 0) {
+                                // First child, draw blue line from marriage to eldest
+                                ctx.beginPath();
+                                ctx.moveTo(marriageCoordinates.x, marriageCoordinates.y);
+                                ctx.lineTo(childCoordinates.x, childCoordinates.y);
+                            } else {
+                                // Subsequent children, connect them in order
+                                const previousChild = sortedChildren[index - 1];
+                                const previousChildIndex = updatedDataPoints.findIndex(point => point.key === previousChild.key);
+                                const previousChildCoordinates = chart.getDatasetMeta(0).data[previousChildIndex]?.getCenterPoint();
+
+                                if (previousChildCoordinates) {
+                                    ctx.moveTo(previousChildCoordinates.x, previousChildCoordinates.y);
+                                    ctx.lineTo(childCoordinates.x, childCoordinates.y);
+                                }
+                            }
                             ctx.strokeStyle = 'rgba(0, 0, 255, 0.8)'; // Blue for lines to children
                             ctx.lineWidth = 2;
                             ctx.stroke();
