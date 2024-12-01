@@ -168,24 +168,24 @@
         // Process marriage data into chart points
         const marriageNodes = marriages.map(marriage => {
             const marriageDate = new Date(marriage.date);
-            const xYear = marriageDate.getFullYear();
+            const xYear = marriage.people.reduce((sum, personKey) => {
+                const person = updatedDataPoints.find(point => point.key === personKey);
+                return sum + (person ? person.x : 0);
+            }, 0) / marriage.people.length;
             const childrenDetails = marriage.children.map(childKey => 
                 updatedDataPoints.find(point => point.key === childKey)
             ).filter(child => child); // Filter out invalid children
 
             return {
-                x: xYear,
-                y: marriage.people.map(personKey => {
-                    const person = updatedDataPoints.find(point => point.key === personKey);
-                    return person ? calculateAgeAtDate(person.dob, marriageDate) : null;
-                }),
+                x: xYear - 3,
+                y: calculateAge(marriage.date),
                 date: marriage.date,
                 people: marriage.people,
                 key: marriage.people.join("-"),
                 children: childrenDetails,
                 color: "rgba(0, 255, 0, 0.8)" // Green for marriage nodes
             };
-        }).filter(node => node.y.every(age => age !== null)); // Remove nodes with invalid ages
+        }).filter(node => node.y !== null); // Remove nodes with invalid ages
 
         const connectRelationshipsPlugin = {
             id: 'connectRelationships',
@@ -265,7 +265,7 @@
                         label: 'Marriages',
                         data: marriageNodes.map(node => ({
                             x: node.x,
-                            y: Math.min(...node.y), // Take the youngest participant's age for plotting
+                            y: node.y,
                             date: node.date,
                             people: node.people,
                             key: node.key,
